@@ -1,0 +1,250 @@
+import pandas as pd
+import numpy as ny
+from tabulate import tabulate
+
+%pylab inline
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pylab as P
+
+df = pd.read_csv('titanic_data.csv')
+
+# dependent variable: survival
+# independent variables: age, sex, Pclass, Sib, Parch
+df.head(2)
+# ############ Investiage variables 
+# Age plot
+ax_age = df['Age'].hist(bins = 40, color ='g')
+ax_age.set_title('Distribution of Age')
+ax_age.set_xlabel('Ages')
+ax_age.set_ylabel('Passenger Counts')
+P.show()
+
+# Pclass plot
+def make_autopct(values):
+    def my_autopct(pct):
+        total = sum(values)
+        val = int(round(pct*total/100.0))
+        return '{p:.2f}%  ({v:d})'.format(p=pct,v=val)
+    return my_autopct
+
+figure(1, figsize(6,6))
+ax_class = df.Pclass.value_counts().plot(kind = 'pie',labels = ['1st Class', '2nd Class', '3rd Class'], autopct = make_autopct(df.Pclass.count()))
+ax_class.axis('equal')
+ax_class.set_title('Distribution of Passenger Classes', loc = 'right')
+
+# 2D Plot -age and Pclass
+figure(2, figsize(6,4))
+size = df.groupby('Age').count()['Survived']
+ax_age_class = df.plot.scatter('Age','Pclass', s = size)
+ax_age_class.set_title('Distribution by Age and Passenger Class')
+
+# ###################Data cleaning###########################
+df['Age'] = df['Age'].fillna(0)
+df['Sex'] = df['Sex'].replace(['female','male'], [1, 2])
+
+survival = df['Survived']
+age = df[df.Age != 0]['Age']
+sex = df['Sex']
+pclass = df['Pclass']
+sib = df['SibSp']
+parch = df['Parch']
+
+# ###Parches for Age == 0
+pch = df[df.Age == 0]
+figure(8, figsize(6,6))
+ax_pch = pch.Parch.value_counts().plot(kind = 'pie', labels = ['No Parch', 'One Parch', 'Two Parches'],autopct = make_autopct(pch.Parch.count()))
+ax_pch.axis('equal')
+ax_pch.set_title('Parches Counts for Passengers Missing Age Data')
+
+
+# Sex
+figure(3, figsize(6,6))
+ax_sex = df.Sex.value_counts().plot(kind = 'pie', labels = ['Female', 'Male'],autopct = make_autopct(df.Sex.count()))
+ax_sex.axis('equal')
+ax_sex.set_title('Distribution of Sex')
+plt.show()
+
+
+# ##########Correlation Study########################################
+# define correlation function
+def correlation(x, y):
+    corr = (((x - x.mean())/x.std()) * ((y - y.mean())/y.std())).mean()
+    return round(corr, 3)
+
+# correlation test
+corr_age = correlation(survival, age) # -0.07788, not significant, needs to study by group
+corr_sex = correlation(survival, sex) # 0.5427, significant
+corr_pclass = correlation(survival, pclass) # -0.33, significant
+corr_sib = correlation(survival, sib) # -0.0353
+corr_parch = correlation(survival, parch) # 0.0815
+print tabulate([['Age', corr_age], ['Sex', corr_sex], ['Class', corr_pclass],['Sib', corr_sib],['Parch', corr_parch]], headers=['Group', 'Correlation'], tablefmt='fancy_grid')
+# sex and pclass are more significantly correlated to survival rate
+# for age, parch and pclass, there are no significant correlation with survival rate, need further discussion
+# regarding different groups
+
+
+# ##############Key factors contributing to higher survival rate##################################
+def survival_rate(dataset):
+    rate = dataset[dataset.Survived == 1].size/ dataset.size.astype(np.float)
+    print round(rate, 2)
+    return round(rate, 2)
+
+def perct_rate(rate):
+    return "{0:.0%}".format(rate)
+
+
+# ############Sex: female VS male
+ave_survival_rate = survival_rate(df)
+survival_rate_female = survival_rate(df[df.Sex == 1])
+survival_rate_male = survival_rate(df[df.Sex == 2])
+print tabulate([['Female', perct_rate(survival_rate_female)], ['Male', perct_rate(survival_rate_male)], ['Average', perct_rate(ave_survival_rate)]], headers=['Group', 'Survival Rate'], tablefmt='fancy_grid')
+
+
+# #############Passenger Class
+rate_1st = survival_rate(df[df.Pclass == 1])
+rate_2nd = survival_rate(df[df.Pclass == 2])
+rate_3rd = survival_rate(df[df.Pclass == 3])
+print tabulate([['1st Class', perct_rate(rate_1st)], ['2nd Class', perct_rate(rate_2nd)], ['3rd Class', perct_rate(rate_3rd)],['Average', perct_rate(ave_survival_rate)]], headers=['Group', 'Survival Rate'], tablefmt='fancy_grid')
+
+
+# ###########Age Group
+# wiki:'In the 19th century, children younger than seven years old were believed incapable of crime.'
+# split age by groups, study the survival rate for each group;
+# ###Survival rate analysis for Age Group
+def survival_rate_by_age(num1, num2):
+    mask = (df['Age'] < num2) & (df['Age'] >= num1)
+    group = df.loc[mask]
+    rate = group[group.Survived == 1].size / group.size.astype(np.float)
+    print perct_rate(rate)
+    return rate
+
+sur_rate_0_5 = survival_rate_by_age(0.1, 7) # 0.70
+sur_rate_5_10 = survival_rate_by_age(7, 15) # 0.39
+sur_rate_10_20 = survival_rate_by_age(15,20) # 0.40
+sur_rate_20_30 = survival_rate_by_age(20, 30) # 0.35
+sur_rate_30_40 = survival_rate_by_age(30, 40) # 0.44
+sur_rate_40_50= survival_rate_by_age(40, 50) # 0.38
+sur_rate_50_60 = survival_rate_by_age(50, 60) # 0.42
+sur_rate_60_70 = survival_rate_by_age(60, 70) # 0.32
+sur_rate_70_80 = survival_rate_by_age(70, 81) # 0.14
+sur_rate_avg = survival_rate_by_age(0.1, 81) # 0.41
+
+# ###Senior passengers study
+senior = df[df.Age >= 70]
+
+def perct(base, var, num):
+    data = base[base[str(var)] == num]
+    perct = data.size / base.size.astype(np.float)
+    percentage = perct_rate(perct)
+    print 'For {} equals {}, the percentage is'.format(var, num), percentage
+    return percentage
+
+perct(senior, 'Sex', 2)
+perct(senior, 'Sex', 1)
+perct(senior, 'Pclass', 1)
+perct(senior, 'Pclass', 2)
+perct(senior, 'Pclass', 3)
+
+print tabulate([['Female', perct(senior, 'Sex', 1)], ['Male', perct(senior, 'Sex', 2)]],headers=['Group', 'Survival Rate'], tablefmt='fancy_grid')
+print tabulate([['Class 1', perct(senior, 'Pclass', 1)],['Class 2', perct(senior, 'Pclass', 2)],['Class 3', perct(senior, 'Pclass', 3)]],headers=['Group', 'Survival Rate'], tablefmt='fancy_grid')
+
+# #########################Scattor Polt 
+x = ['< 7', '7-15', '15-20', '20-30', '30-40', '40-50', '50-60', '60-70', '>= 70', 'Avg']
+y = [sur_rate_0_5, sur_rate_5_10, sur_rate_10_20, sur_rate_20_30,sur_rate_30_40,sur_rate_40_50,sur_rate_50_60, sur_rate_60_70, sur_rate_70_80, sur_rate_avg]
+
+figure(4, figsize(6,4))
+y_pos = np.arange(len(x))
+plt.bar(y_pos, y, color = 'green',align='center', alpha=0.5)
+plt.xticks(y_pos, x)
+plt.title('Survival Rate by Age Classes')
+plt.ylabel('Survival Rate')
+plt.show()
+
+# ###3D scattor plot
+from mpl_toolkits.mplot3d import Axes3D
+fig = plt.figure()
+ax2 = fig.add_subplot(111, projection='3d')
+ax2.scatter(df[df.Survived == 1]['Age'], df[df.Survived == 1]['Pclass'], df[df.Survived == 1]['Sex'])
+ax2.set_xlabel('Age')
+ax2.set_ylabel('Passenger Class')
+ax2.set_zlabel('Sex Group')
+ax2.set_title('Survived Passengers Demography')
+plt.show()
+
+fig1 = plt.figure()
+ax3 = fig1.add_subplot(111, projection='3d')
+ax3.scatter(df['Age'], df['Pclass'], df['Sex'], c = 'g', marker = '^')
+ax3.set_xlabel('Age')
+ax3.set_ylabel('Passenger Class')
+ax3.set_zlabel('Sex Group')
+ax3.set_title('Overall Passengers Demography')
+plt.show()
+
+
+# ##############Highest and Lowest Survival Rate###########################
+# ####New correlation calculation for Age Group
+df_new = df[df.Age != 0]
+
+mask1 = (df['Age'] < 7) & (df['Age'] >= 0.1)
+mask2 = (df['Age'] < 60) & (df['Age'] >= 7)
+mask3 = (df['Age'] < 100) & (df['Age'] >= 60)
+
+df.ix[mask1, 'Age'] = 1
+df.ix[mask2, 'Age'] = 2
+df.ix[mask3, 'Age'] = 3
+
+survival_alt = df['Survived']
+age_alt = df[df.Age !=0 ]['Age']
+
+print correlation(survival_alt, age_alt)
+
+# ### Survival rate by Sex, Age and Passenger Classes  
+
+mask1 = (df_new['Age'] < 7) & (df_new['Age'] >= 0.1)
+mask2 = (df_new['Age'] < 60) & (df_new['Age'] >= 7)
+mask3 = (df_new['Age'] < 100) & (df_new['Age'] >= 60)
+
+df_new.ix[mask1, 'Age'] = 'Younger than 7'
+df_new.ix[mask2, 'Age'] = '7-59'
+df_new.ix[mask3, 'Age'] = 'Older than 60'
+
+grouped = df_new.groupby(['Sex','Age','Pclass'], sort = True)
+print grouped.mean()['Survived'].apply(perct_rate)
+print grouped.count()['Survived']
+
+# ###3D plot
+n_groups = 6
+adult = (0.98, 0.91, 0.41, 0.42, 0.07, 0.14)
+senior = (1, 0.01, 1, 0.14, 0.25, 0.01)
+children = (0.01, 1, 0.69, 1, 1, 0.43)
+
+fig3, ax3 = plt.subplots()
+index = np.arange(n_groups)
+bar_width = 0.2
+opacity = 0.8
+ 
+rects1 = plt.bar(index - bar_width, children, bar_width,
+                 alpha=opacity,
+                 color='r',
+                 label='Younger than 7')
+ 
+rects2 = plt.bar(index, adult, bar_width,
+                 alpha=opacity,
+                 color='g',
+                 label='7-59')
+
+rects3 = plt.bar(index + bar_width, senior, bar_width,
+                 alpha=opacity,
+                 color='b',
+                 label='Older than 60')
+ 
+plt.xlabel('Group by Sex, Passenger Group and Age Group')
+plt.ylabel('Survival Rate')
+plt.title('Survival Rate by Sex, Passenger Group and Age Group')
+plt.xticks(index + bar_width, ('F-1st', 'F-2nd', 'F-3rd', 'M-1st', 'M-2nd', 'M-3rd'))
+plt.legend()
+ 
+plt.tight_layout()
+plt.show()
+
